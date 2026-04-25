@@ -29,6 +29,17 @@
             text-align: center;
         }
         header h1 { font-size: 1.85rem; }
+
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 14px 16px;
+            margin: 10px 15px;
+            border-radius: 8px;
+            border-left: 5px solid #ffc107;
+            font-size: 0.96rem;
+        }
+
         .main-content {
             padding: 15px;
             display: flex;
@@ -142,22 +153,15 @@
             background: #aaa;
             cursor: not-allowed;
         }
-        .status {
-            padding: 12px;
-            border-radius: 10px;
-            margin: 15px 0;
-            text-align: center;
-            font-weight: 600;
-            font-size: 1.05rem;
-        }
-        .available { background: #e8f5e9; color: #2e7d32; }
-        .unavailable { background: #ffebee; color: #c62828; }
         .export-import {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             margin-top: 15px;
         }
-        .export-import button { flex: 1; padding: 12px; }
+        .export-import button {
+            flex: 1;
+            padding: 12px;
+        }
         .reservations-list {
             margin-top: 20px;
             max-height: 420px;
@@ -184,6 +188,14 @@
             <h1>🏡 Recanto dos Carneiros</h1>
             <p>Calendário de Reservas</p>
         </header>
+
+        <div class="warning">
+            <strong>⚠️ Como salvar permanentemente:</strong><br>
+            • Faça as reservas normalmente<br>
+            • Clique em <strong>"Exportar Reservas"</strong> e salve o arquivo JSON<br>
+            • Para recuperar: clique em <strong>"Importar Reservas"</strong> e selecione o arquivo salvo
+        </div>
+
         <div class="main-content">
             <!-- Calendário -->
             <div class="calendar-section">
@@ -235,6 +247,7 @@
     <input type="file" id="importFile" accept=".json" style="display:none;">
 
     <script>
+        // Variáveis globais
         let currentDate = new Date();
         let checkin = null;
         let checkout = null;
@@ -245,7 +258,6 @@
             return dateStr ? dateStr.split('-').reverse().join('/') : '';
         }
 
-        // Verifica se a data está reservada por alguma reserva existente
         function isBooked(dateStr) {
             return reservations.some(res => {
                 const start = res.date;
@@ -274,7 +286,7 @@
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             const daysInPrevMonth = new Date(year, month, 0).getDate();
 
-            // Dias do mês anterior
+            // Mês anterior
             for (let i = firstDay - 1; i >= 0; i--) {
                 const day = document.createElement('div');
                 day.className = 'day other-month';
@@ -282,7 +294,7 @@
                 calendar.appendChild(day);
             }
 
-            // Dias do mês atual
+            // Mês atual
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
                 const dayEl = document.createElement('div');
@@ -314,46 +326,29 @@
             const reserveBtn = document.getElementById('reserveBtn');
 
             if (!checkin) {
-                // Primeira seleção: Check-in
-                if (isBooked(dateStr)) {
-                    alert("Esta data já está reservada!");
-                    return;
-                }
+                if (isBooked(dateStr)) return alert("Esta data já está reservada!");
                 checkin = dateStr;
                 checkout = null;
-                document.getElementById('checkinDate').value = formatDate(checkin);
-                document.getElementById('checkoutDate').value = '';
-            }
-            else if (!checkout) {
-                // Segunda seleção: Check-out
-                if (dateStr < checkin) {
-                    alert("A data de saída deve ser posterior à data de entrada!");
-                    return;
-                }
-                if (isBooked(dateStr)) {
-                    alert("Esta data já está reservada!");
-                    return;
-                }
+            } else if (!checkout) {
+                if (dateStr < checkin) return alert("A data de saída deve ser posterior à entrada!");
+                if (isBooked(dateStr)) return alert("Esta data já está reservada!");
                 checkout = dateStr;
-                document.getElementById('checkoutDate').value = formatDate(checkout);
-            }
-            else {
-                // Reinicia a seleção
+            } else {
                 checkin = dateStr;
                 checkout = null;
-                document.getElementById('checkinDate').value = formatDate(checkin);
-                document.getElementById('checkoutDate').value = '';
             }
 
-            // Verifica disponibilidade do período completo
-            let isPeriodAvailable = true;
+            document.getElementById('checkinDate').value = formatDate(checkin);
+            document.getElementById('checkoutDate').value = formatDate(checkout);
+
+            let isAvailable = true;
             if (checkin && checkout) {
                 let current = new Date(checkin);
                 const end = new Date(checkout);
                 while (current <= end) {
-                    const dStr = current.toISOString().split('T')[0];
-                    if (isBooked(dStr) && dStr !== checkin && dStr !== checkout) {
-                        isPeriodAvailable = false;
+                    const d = current.toISOString().split('T')[0];
+                    if (isBooked(d) && d !== checkin && d !== checkout) {
+                        isAvailable = false;
                         break;
                     }
                     current.setDate(current.getDate() + 1);
@@ -361,12 +356,12 @@
             }
 
             if (checkin && checkout) {
-                if (isPeriodAvailable) {
+                if (isAvailable) {
                     statusEl.textContent = '✅ Período disponível!';
                     statusEl.className = 'status available';
                     reserveBtn.disabled = false;
                 } else {
-                    statusEl.textContent = '❌ Existe conflito no período selecionado';
+                    statusEl.textContent = '❌ Conflito no período selecionado';
                     statusEl.className = 'status unavailable';
                     reserveBtn.disabled = true;
                 }
@@ -390,9 +385,9 @@
             reservations.forEach((res, index) => {
                 const div = document.createElement('div');
                 div.className = 'reservation-item';
-                const checkoutFormatted = res.checkout ? ` → ${formatDate(res.checkout)}` : '';
+                const endFmt = res.checkout ? ` → ${formatDate(res.checkout)}` : '';
                 div.innerHTML = `
-                    <strong>${formatDate(res.date)}${checkoutFormatted}</strong><br>
+                    <strong>${formatDate(res.date)}${endFmt}</strong><br>
                     <strong>${res.client}</strong><br>
                     ${res.observation ? `<small style="color:#555;">${res.observation}</small>` : ''}
                     <button onclick="deleteReservation(${index})" style="background:#c62828; margin-top:10px; padding:8px 12px; font-size:0.9rem; border:none; border-radius:6px; color:white;">Cancelar Reserva</button>
@@ -409,90 +404,100 @@
             }
         };
 
-        // Navegação do calendário
-        document.getElementById('prevMonth').addEventListener('click', () => {
-            currentDate.setMonth(currentDate.getMonth() - 1);
-            renderCalendar();
-        });
-
-        document.getElementById('nextMonth').addEventListener('click', () => {
-            currentDate.setMonth(currentDate.getMonth() + 1);
-            renderCalendar();
-        });
-
-        // Confirmar Reserva
-        document.getElementById('reserveBtn').addEventListener('click', () => {
-            if (!checkin || !checkout) return;
-
-            const clientName = document.getElementById('clientName').value.trim();
-            if (!clientName) {
-                alert('Por favor, informe o nome do responsável.');
-                return;
-            }
-
-            reservations.push({
-                date: checkin,
-                checkout: checkout,
-                client: clientName,
-                observation: document.getElementById('observation').value.trim()
+        // ====================== EVENT LISTENERS ======================
+        function addEventListeners() {
+            // Navegação do calendário
+            document.getElementById('prevMonth').addEventListener('click', () => {
+                currentDate.setMonth(currentDate.getMonth() - 1);
+                renderCalendar();
             });
 
-            renderCalendar();
-            renderReservations();
+            document.getElementById('nextMonth').addEventListener('click', () => {
+                currentDate.setMonth(currentDate.getMonth() + 1);
+                renderCalendar();
+            });
 
-            // Limpar formulário
-            checkin = null;
-            checkout = null;
-            document.getElementById('checkinDate').value = '';
-            document.getElementById('checkoutDate').value = '';
-            document.getElementById('clientName').value = '';
-            document.getElementById('observation').value = '';
-            document.getElementById('availabilityStatus').style.display = 'none';
-            document.getElementById('reserveBtn').disabled = true;
+            // Confirmar Reserva
+            document.getElementById('reserveBtn').addEventListener('click', () => {
+                if (!checkin || !checkout) return;
 
-            alert('✅ Reserva confirmada com sucesso!');
-        });
-
-        // Exportar e Importar
-        document.getElementById('exportBtn').addEventListener('click', () => {
-            if (reservations.length === 0) return alert('Não há reservas para exportar.');
-            const dataStr = JSON.stringify(reservations, null, 2);
-            const blob = new Blob([dataStr], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `reservas_recanto_${new Date().toISOString().slice(0,10)}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        });
-
-        document.getElementById('importBtn').addEventListener('click', () => {
-            document.getElementById('importFile').click();
-        });
-
-        document.getElementById('importFile').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                try {
-                    const imported = JSON.parse(ev.target.result);
-                    if (Array.isArray(imported)) {
-                        reservations = imported;
-                        renderCalendar();
-                        renderReservations();
-                        alert('✅ Reservas importadas com sucesso!');
-                    }
-                } catch (err) {
-                    alert('Erro ao importar o arquivo.');
+                const clientName = document.getElementById('clientName').value.trim();
+                if (!clientName) {
+                    alert('Por favor, informe o nome do responsável.');
+                    return;
                 }
-            };
-            reader.readAsText(file);
-        });
+
+                reservations.push({
+                    date: checkin,
+                    checkout: checkout,
+                    client: clientName,
+                    observation: document.getElementById('observation').value.trim()
+                });
+
+                renderCalendar();
+                renderReservations();
+
+                // Limpar formulário
+                checkin = null;
+                checkout = null;
+                document.getElementById('checkinDate').value = '';
+                document.getElementById('checkoutDate').value = '';
+                document.getElementById('clientName').value = '';
+                document.getElementById('observation').value = '';
+                document.getElementById('availabilityStatus').style.display = 'none';
+                document.getElementById('reserveBtn').disabled = true;
+
+                alert('✅ Reserva confirmada!\n\nLembre-se de Exportar as reservas para salvar permanentemente.');
+            });
+
+            // Exportar
+            document.getElementById('exportBtn').addEventListener('click', () => {
+                if (reservations.length === 0) return alert('Não há reservas para exportar.');
+                const dataStr = JSON.stringify(reservations, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `reservas_recanto_${new Date().toISOString().slice(0,10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+
+            // Importar
+            document.getElementById('importBtn').addEventListener('click', () => {
+                document.getElementById('importFile').click();
+            });
+
+            document.getElementById('importFile').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    try {
+                        const imported = JSON.parse(ev.target.result);
+                        if (Array.isArray(imported)) {
+                            reservations = [...reservations, ...imported];
+                            renderCalendar();
+                            renderReservations();
+                            alert('✅ Reservas importadas com sucesso!');
+                        }
+                    } catch (err) {
+                        alert('Erro ao importar o arquivo.');
+                    }
+                };
+                reader.readAsText(file);
+            });
+        }
 
         // Inicialização
-        renderCalendar();
-        renderReservations();
+        function init() {
+            renderCalendar();
+            renderReservations();
+            addEventListeners();   // ← Adicionado aqui, depois que todos os elementos existem
+        }
+
+        // Executa quando a página carrega
+        window.onload = init;
     </script>
 </body>
 </html>
