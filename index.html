@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Recanto dos Carneiros - Reservas</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+            color: #333;
+            min-height: 100vh;
+            padding: 10px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        header {
+            background: #2e7d32;
+            color: white;
+            padding: 20px 15px;
+            text-align: center;
+        }
+        header h1 { font-size: 1.85rem; }
+        .main-content {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .calendar-section { flex: 1; }
+        .booking-section {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 12px;
+        }
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .calendar-header button {
+            background: #2e7d32;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .calendar-header h2 {
+            font-size: 1.4rem;
+            flex: 1;
+            text-align: center;
+        }
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+            text-align: center;
+        }
+        .weekday {
+            font-weight: 600;
+            padding: 10px 4px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 8px;
+        }
+        .day {
+            padding: 14px 6px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 1.05rem;
+            min-height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .day:hover { background: #e8f5e9; transform: scale(1.03); }
+        .day.other-month { color: #aaa; }
+        .day.today { background: #2e7d32; color: white; font-weight: 600; }
+        .day.booked {
+            background: #ffebee;
+            color: #c62828;
+            font-weight: 600;
+            cursor: not-allowed;
+        }
+        .day.start {
+            background: #2e7d32 !important;
+            color: white !important;
+            box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.5);
+        }
+        .day.end {
+            background: #4caf50 !important;
+            color: white !important;
+            box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.5);
+        }
+        .day.in-range {
+            background: #f1f8e9 !important;
+            color: #33691e;
+        }
+        .form-group { margin-bottom: 18px; }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 1.05rem;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1.5px solid #ddd;
+            border-radius: 10px;
+            font-size: 1.05rem;
+        }
+        textarea { resize: vertical; min-height: 80px; }
+        button {
+            background: #2e7d32;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            width: 100%;
+            margin-top: 8px;
+        }
+        button:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 12px;
+            border-radius: 10px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: 600;
+            font-size: 1.05rem;
+        }
+        .available { background: #e8f5e9; color: #2e7d32; }
+        .unavailable { background: #ffebee; color: #c62828; }
+        .export-import {
+            display: flex;
+            gap: 12px;
+            margin-top: 15px;
+        }
+        .export-import button { flex: 1; padding: 12px; }
+        .reservations-list {
+            margin-top: 20px;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+        .reservation-item {
+            background: white;
+            padding: 14px;
+            margin-bottom: 12px;
+            border-radius: 10px;
+            border-left: 5px solid #2e7d32;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        @media (min-width: 768px) {
+            .main-content { flex-direction: row; }
+            .calendar-section { flex: 2; }
+            header h1 { font-size: 2.2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏡 Recanto dos Carneiros</h1>
+            <p>Calendário de Reservas</p>
+        </header>
+        <div class="main-content">
+            <!-- Calendário -->
+            <div class="calendar-section">
+                <div class="calendar-header">
+                    <button id="prevMonth">← Anterior</button>
+                    <h2 id="monthYear"></h2>
+                    <button id="nextMonth">Próximo →</button>
+                </div>
+                <div id="calendar" class="calendar"></div>
+            </div>
+
+            <!-- Painel de Reserva -->
+            <div class="booking-section">
+                <h2>📅 Nova Reserva</h2>
+               
+                <div class="form-group">
+                    <label>Data de Entrada (Check-in):</label>
+                    <input type="text" id="checkinDate" readonly placeholder="Toque no calendário">
+                </div>
+                <div class="form-group">
+                    <label>Data de Saída (Check-out):</label>
+                    <input type="text" id="checkoutDate" readonly placeholder="Toque novamente no calendário">
+                </div>
+
+                <div id="availabilityStatus" class="status" style="display:none;"></div>
+
+                <div class="form-group">
+                    <label>Nome do Responsável:</label>
+                    <input type="text" id="clientName" placeholder="Ex: João Silva">
+                </div>
+                <div class="form-group">
+                    <label>Observação (opcional):</label>
+                    <textarea id="observation" placeholder="Quantidade de pessoas, horário especial, etc..."></textarea>
+                </div>
+
+                <button id="reserveBtn" disabled>✅ Confirmar Reserva</button>
+
+                <div class="export-import">
+                    <button id="exportBtn">📤 Exportar Reservas</button>
+                    <button id="importBtn">📥 Importar Reservas</button>
+                </div>
+
+                <h3 style="margin: 25px 0 12px;">Reservas Cadastradas</h3>
+                <div class="reservations-list" id="reservationsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="importFile" accept=".json" style="display:none;">
+
+    <script>
+        let currentDate = new Date();
+        let checkin = null;
+        let checkout = null;
+        let reservations = [];
+        const monthNames = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+        function formatDate(dateStr) {
+            return dateStr ? dateStr.split('-').reverse().join('/') : '';
+        }
+
+        // Verifica se a data está reservada por alguma reserva existente
+        function isBooked(dateStr) {
+            return reservations.some(res => {
+                const start = res.date;
+                const end = res.checkout || res.date;
+                return dateStr >= start && dateStr <= end;
+            });
+        }
+
+        function renderCalendar() {
+            const calendar = document.getElementById('calendar');
+            calendar.innerHTML = '';
+
+            const weekdays = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+            weekdays.forEach(w => {
+                const div = document.createElement('div');
+                div.className = 'weekday';
+                div.textContent = w;
+                calendar.appendChild(div);
+            });
+
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            document.getElementById('monthYear').textContent = `${monthNames[month]} ${year}`;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+            // Dias do mês anterior
+            for (let i = firstDay - 1; i >= 0; i--) {
+                const day = document.createElement('div');
+                day.className = 'day other-month';
+                day.textContent = daysInPrevMonth - i;
+                calendar.appendChild(day);
+            }
+
+            // Dias do mês atual
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                const dayEl = document.createElement('div');
+                dayEl.className = 'day';
+                dayEl.textContent = day;
+
+                if (isBooked(dateStr)) {
+                    dayEl.classList.add('booked');
+                } else if (dateStr === checkin) {
+                    dayEl.classList.add('start');
+                } else if (dateStr === checkout) {
+                    dayEl.classList.add('end');
+                } else if (checkin && checkout && dateStr > checkin && dateStr < checkout) {
+                    dayEl.classList.add('in-range');
+                }
+
+                const today = new Date();
+                if (day === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
+                    dayEl.classList.add('today');
+                }
+
+                dayEl.addEventListener('click', () => selectDate(dateStr));
+                calendar.appendChild(dayEl);
+            }
+        }
+
+        function selectDate(dateStr) {
+            const statusEl = document.getElementById('availabilityStatus');
+            const reserveBtn = document.getElementById('reserveBtn');
+
+            if (!checkin) {
+                // Primeira seleção: Check-in
+                if (isBooked(dateStr)) {
+                    alert("Esta data já está reservada!");
+                    return;
+                }
+                checkin = dateStr;
+                checkout = null;
+                document.getElementById('checkinDate').value = formatDate(checkin);
+                document.getElementById('checkoutDate').value = '';
+            }
+            else if (!checkout) {
+                // Segunda seleção: Check-out
+                if (dateStr < checkin) {
+                    alert("A data de saída deve ser posterior à data de entrada!");
+                    return;
+                }
+                if (isBooked(dateStr)) {
+                    alert("Esta data já está reservada!");
+                    return;
+                }
+                checkout = dateStr;
+                document.getElementById('checkoutDate').value = formatDate(checkout);
+            }
+            else {
+                // Reinicia a seleção
+                checkin = dateStr;
+                checkout = null;
+                document.getElementById('checkinDate').value = formatDate(checkin);
+                document.getElementById('checkoutDate').value = '';
+            }
+
+            // Verifica disponibilidade do período completo
+            let isPeriodAvailable = true;
+            if (checkin && checkout) {
+                let current = new Date(checkin);
+                const end = new Date(checkout);
+                while (current <= end) {
+                    const dStr = current.toISOString().split('T')[0];
+                    if (isBooked(dStr) && dStr !== checkin && dStr !== checkout) {
+                        isPeriodAvailable = false;
+                        break;
+                    }
+                    current.setDate(current.getDate() + 1);
+                }
+            }
+
+            if (checkin && checkout) {
+                if (isPeriodAvailable) {
+                    statusEl.textContent = '✅ Período disponível!';
+                    statusEl.className = 'status available';
+                    reserveBtn.disabled = false;
+                } else {
+                    statusEl.textContent = '❌ Existe conflito no período selecionado';
+                    statusEl.className = 'status unavailable';
+                    reserveBtn.disabled = true;
+                }
+                statusEl.style.display = 'block';
+            } else {
+                statusEl.style.display = 'none';
+                reserveBtn.disabled = true;
+            }
+
+            renderCalendar();
+        }
+
+        function renderReservations() {
+            const list = document.getElementById('reservationsList');
+            list.innerHTML = '';
+            if (reservations.length === 0) {
+                list.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">Nenhuma reserva cadastrada.</p>';
+                return;
+            }
+            reservations.sort((a,b) => a.date.localeCompare(b.date));
+            reservations.forEach((res, index) => {
+                const div = document.createElement('div');
+                div.className = 'reservation-item';
+                const checkoutFormatted = res.checkout ? ` → ${formatDate(res.checkout)}` : '';
+                div.innerHTML = `
+                    <strong>${formatDate(res.date)}${checkoutFormatted}</strong><br>
+                    <strong>${res.client}</strong><br>
+                    ${res.observation ? `<small style="color:#555;">${res.observation}</small>` : ''}
+                    <button onclick="deleteReservation(${index})" style="background:#c62828; margin-top:10px; padding:8px 12px; font-size:0.9rem; border:none; border-radius:6px; color:white;">Cancelar Reserva</button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        window.deleteReservation = function(index) {
+            if (confirm('Tem certeza que deseja cancelar esta reserva?')) {
+                reservations.splice(index, 1);
+                renderCalendar();
+                renderReservations();
+            }
+        };
+
+        // Navegação do calendário
+        document.getElementById('prevMonth').addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        });
+
+        document.getElementById('nextMonth').addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        });
+
+        // Confirmar Reserva
+        document.getElementById('reserveBtn').addEventListener('click', () => {
+            if (!checkin || !checkout) return;
+
+            const clientName = document.getElementById('clientName').value.trim();
+            if (!clientName) {
+                alert('Por favor, informe o nome do responsável.');
+                return;
+            }
+
+            reservations.push({
+                date: checkin,
+                checkout: checkout,
+                client: clientName,
+                observation: document.getElementById('observation').value.trim()
+            });
+
+            renderCalendar();
+            renderReservations();
+
+            // Limpar formulário
+            checkin = null;
+            checkout = null;
+            document.getElementById('checkinDate').value = '';
+            document.getElementById('checkoutDate').value = '';
+            document.getElementById('clientName').value = '';
+            document.getElementById('observation').value = '';
+            document.getElementById('availabilityStatus').style.display = 'none';
+            document.getElementById('reserveBtn').disabled = true;
+
+            alert('✅ Reserva confirmada com sucesso!');
+        });
+
+        // Exportar e Importar
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            if (reservations.length === 0) return alert('Não há reservas para exportar.');
+            const dataStr = JSON.stringify(reservations, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reservas_recanto_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        document.getElementById('importBtn').addEventListener('click', () => {
+            document.getElementById('importFile').click();
+        });
+
+        document.getElementById('importFile').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    const imported = JSON.parse(ev.target.result);
+                    if (Array.isArray(imported)) {
+                        reservations = imported;
+                        renderCalendar();
+                        renderReservations();
+                        alert('✅ Reservas importadas com sucesso!');
+                    }
+                } catch (err) {
+                    alert('Erro ao importar o arquivo.');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // Inicialização
+        renderCalendar();
+        renderReservations();
+    </script>
+</body>
+</html>
