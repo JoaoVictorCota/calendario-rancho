@@ -29,34 +29,6 @@
             text-align: center;
         }
         header h1 { font-size: 1.85rem; }
-        .login-section {
-            margin: 15px;
-            padding: 16px;
-            background: #e8f5e9;
-            border-radius: 12px;
-        }
-        .login-section h2 { margin-bottom: 10px; font-size: 1.2rem; }
-        .login-row {
-            display: flex;
-            gap: 10px;
-            align-items: end;
-            flex-wrap: wrap;
-        }
-        .login-row .form-group {
-            flex: 1;
-            min-width: 210px;
-            margin-bottom: 0;
-        }
-        .login-row button {
-            width: auto;
-            min-width: 150px;
-        }
-        .login-status {
-            margin-top: 10px;
-            font-size: 0.95rem;
-        }
-        #logoutBtn { background: #555; }
-
         .main-content {
             padding: 15px;
             display: flex;
@@ -197,37 +169,6 @@
             <p>Calendário de Reservas</p>
         </header>
 
-        <section class="login-section">
-            <div id="phoneLogin">
-                <h2>Entrar para reservar</h2>
-                <div class="login-row">
-                    <div class="form-group">
-                        <label for="phoneNumber">Número de celular:</label>
-                        <input type="tel" id="phoneNumber" placeholder="Ex: (31) 99999-9999">
-                    </div>
-                    <button id="sendCodeBtn">Enviar código</button>
-                </div>
-                <div id="codeArea" class="login-row" style="display:none; margin-top:12px;">
-                    <div class="form-group">
-                        <label for="verificationCode">Código recebido por SMS:</label>
-                        <input type="text" id="verificationCode" inputmode="numeric" maxlength="6" placeholder="000000">
-                    </div>
-                    <button id="verifyCodeBtn">Confirmar código</button>
-                </div>
-            </div>
-            <div id="loggedInArea" style="display:none;">
-                <div class="login-row">
-                    <div>
-                        <strong>Telefone confirmado</strong>
-                        <div id="loggedPhone" class="login-status"></div>
-                    </div>
-                    <button id="logoutBtn">Sair</button>
-                </div>
-            </div>
-            <div id="loginStatus" class="login-status"></div>
-            <div id="recaptcha-container"></div>
-        </section>
-
         <div class="main-content">
             <!-- Calendário -->
             <div class="calendar-section">
@@ -276,9 +217,7 @@
         import {
             getAuth,
             onAuthStateChanged,
-            RecaptchaVerifier,
-            signInWithPhoneNumber,
-            signOut
+            signInAnonymously
         } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
         import {
             collection,
@@ -309,45 +248,7 @@
         let checkout = null;
         let reservations = [];
         let currentUser = null;
-        let confirmationResult = null;
-        let recaptchaVerifier = null;
         const monthNames = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-
-        function normalizeBrazilianPhone(value) {
-            let digits = value.replace(/\D/g, '');
-            if (digits.length === 10 || digits.length === 11) {
-                digits = `55${digits}`;
-            }
-            if (digits.length !== 12 && digits.length !== 13) {
-                throw new Error('Informe um celular válido com DDD.');
-            }
-            return `+${digits}`;
-        }
-
-        function updateReserveButton() {
-            const reserveBtn = document.getElementById('reserveBtn');
-            reserveBtn.disabled = !(currentUser && checkin && checkout);
-        }
-
-        function updateLoginInterface(user) {
-            document.getElementById('phoneLogin').style.display = user ? 'none' : 'block';
-            document.getElementById('loggedInArea').style.display = user ? 'block' : 'none';
-            document.getElementById('loggedPhone').textContent = user?.phoneNumber || '';
-            document.getElementById('loginStatus').textContent = user
-                ? 'Você pode criar e cancelar as reservas feitas com este telefone.'
-                : 'Confirme seu telefone para criar uma reserva.';
-            updateReserveButton();
-            renderReservations();
-        }
-
-        function getRecaptchaVerifier() {
-            if (!recaptchaVerifier) {
-                recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-                    size: 'invisible'
-                });
-            }
-            return recaptchaVerifier;
-        }
 
         function getDateRange(start, end) {
             const dates = [];
@@ -364,7 +265,7 @@
 
         async function createReservation(reservation) {
             if (!currentUser) {
-                throw new Error('Confirme seu telefone antes de reservar.');
+                throw new Error('O dispositivo ainda não foi identificado. Tente novamente.');
             }
 
             const days = getDateRange(reservation.date, reservation.checkout);
@@ -403,7 +304,7 @@
 
         async function removeReservation(reservation) {
             if (!currentUser || reservation.ownerId !== currentUser.uid) {
-                throw new Error('Somente o telefone que criou esta reserva pode cancelá-la.');
+                throw new Error('Somente o dispositivo que criou esta reserva pode cancelá-la.');
             }
 
             const reservationRef = doc(db, 'reservations', reservation.id);
@@ -609,64 +510,6 @@
                 renderCalendar();
             });
 
-            document.getElementById('sendCodeBtn').addEventListener('click', async () => {
-                const sendCodeBtn = document.getElementById('sendCodeBtn');
-                const statusEl = document.getElementById('loginStatus');
-
-                try {
-                    const phoneNumber = normalizeBrazilianPhone(
-                        document.getElementById('phoneNumber').value
-                    );
-                    sendCodeBtn.disabled = true;
-                    sendCodeBtn.textContent = 'Enviando...';
-                    confirmationResult = await signInWithPhoneNumber(
-                        auth,
-                        phoneNumber,
-                        getRecaptchaVerifier()
-                    );
-                    document.getElementById('codeArea').style.display = 'flex';
-                    statusEl.textContent = 'Código enviado por SMS. Digite-o abaixo.';
-                } catch (error) {
-                    console.error(error);
-                    statusEl.textContent = error.message || 'Não foi possível enviar o código.';
-                    recaptchaVerifier?.clear();
-                    recaptchaVerifier = null;
-                } finally {
-                    sendCodeBtn.disabled = false;
-                    sendCodeBtn.textContent = 'Enviar código';
-                }
-            });
-
-            document.getElementById('verifyCodeBtn').addEventListener('click', async () => {
-                const verifyCodeBtn = document.getElementById('verifyCodeBtn');
-                const statusEl = document.getElementById('loginStatus');
-                const code = document.getElementById('verificationCode').value.trim();
-
-                if (!confirmationResult || code.length !== 6) {
-                    statusEl.textContent = 'Digite o código de 6 números recebido por SMS.';
-                    return;
-                }
-
-                try {
-                    verifyCodeBtn.disabled = true;
-                    verifyCodeBtn.textContent = 'Confirmando...';
-                    await confirmationResult.confirm(code);
-                    confirmationResult = null;
-                    document.getElementById('verificationCode').value = '';
-                    document.getElementById('codeArea').style.display = 'none';
-                } catch (error) {
-                    console.error(error);
-                    statusEl.textContent = 'Código inválido ou expirado. Tente novamente.';
-                } finally {
-                    verifyCodeBtn.disabled = false;
-                    verifyCodeBtn.textContent = 'Confirmar código';
-                }
-            });
-
-            document.getElementById('logoutBtn').addEventListener('click', async () => {
-                await signOut(auth);
-            });
-
             // Confirmar Reserva
             document.getElementById('reserveBtn').addEventListener('click', async () => {
                 if (!checkin || !checkout) return;
@@ -721,8 +564,15 @@
 
             onAuthStateChanged(auth, user => {
                 currentUser = user;
-                updateLoginInterface(user);
+                renderReservations();
             });
+
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error(error);
+                alert('Não foi possível identificar este dispositivo. Ative o login anônimo no Firebase.');
+            }
         }
 
         // Executa quando a página carrega

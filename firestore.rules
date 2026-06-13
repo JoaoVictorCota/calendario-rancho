@@ -7,7 +7,6 @@ service cloud.firestore {
 
       allow create: if
         request.auth != null &&
-        request.auth.token.phone_number is string &&
         request.resource.data.ownerId == request.auth.uid &&
         request.resource.data.date is string &&
         request.resource.data.checkout is string &&
@@ -22,7 +21,6 @@ service cloud.firestore {
 
       allow delete: if
         request.auth != null &&
-        request.auth.token.phone_number is string &&
         resource.data.ownerId == request.auth.uid;
       allow update: if false;
     }
@@ -32,14 +30,12 @@ service cloud.firestore {
 
       allow create: if
         request.auth != null &&
-        request.auth.token.phone_number is string &&
         request.resource.data.ownerId == request.auth.uid &&
         request.resource.data.reservationId is string &&
         request.resource.data.date == date;
 
       allow delete: if
         request.auth != null &&
-        request.auth.token.phone_number is string &&
         resource.data.ownerId == request.auth.uid;
       allow update: if false;
     }
