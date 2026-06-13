@@ -190,10 +190,10 @@
         </header>
 
         <div class="warning">
-            <strong>⚠️ Como salvar permanentemente:</strong><br>
-            • Faça as reservas normalmente<br>
-            • Clique em <strong>"Exportar Reservas"</strong> e salve o arquivo JSON<br>
-            • Para recuperar: clique em <strong>"Importar Reservas"</strong> e selecione o arquivo salvo
+            <strong>⚠️ Calendário compartilhado:</strong><br>
+            • As reservas ficam salvas online e aparecem em todos os dispositivos<br>
+            • Use <strong>"Exportar Reservas"</strong> para criar uma cópia de segurança em arquivo JSON<br>
+            • Use <strong>"Importar Reservas"</strong> para recuperar uma cópia salva
         </div>
 
         <div class="main-content">
@@ -246,13 +246,116 @@
 
     <input type="file" id="importFile" accept=".json" style="display:none;">
 
-    <script>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
+        import {
+            collection,
+            doc,
+            getFirestore,
+            onSnapshot,
+            runTransaction,
+            serverTimestamp
+        } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: 'AIzaSyB_dRYVqBCrYkBNsnxAkmo68BDOAn7PWFo',
+            authDomain: 'calendario-rancho.firebaseapp.com',
+            projectId: 'calendario-rancho',
+            storageBucket: 'calendario-rancho.firebasestorage.app',
+            messagingSenderId: '370979687587',
+            appId: '1:370979687587:web:11c99014abe66bd1bf4316',
+            measurementId: 'G-73J6E9N669'
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
         // Variáveis globais
         let currentDate = new Date();
         let checkin = null;
         let checkout = null;
         let reservations = [];
         const monthNames = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+        function getDateRange(start, end) {
+            const dates = [];
+            const current = new Date(`${start}T12:00:00`);
+            const last = new Date(`${end}T12:00:00`);
+
+            while (current <= last) {
+                dates.push(current.toISOString().slice(0, 10));
+                current.setDate(current.getDate() + 1);
+            }
+
+            return dates;
+        }
+
+        async function createReservation(reservation) {
+            const days = getDateRange(reservation.date, reservation.checkout);
+            if (days.length > 90) {
+                throw new Error('O período máximo permitido é de 90 dias.');
+            }
+
+            const reservationRef = doc(collection(db, 'reservations'));
+
+            await runTransaction(db, async transaction => {
+                const dayRefs = days.map(day => doc(db, 'reservedDates', day));
+                const daySnapshots = await Promise.all(
+                    dayRefs.map(dayRef => transaction.get(dayRef))
+                );
+
+                if (daySnapshots.some(snapshot => snapshot.exists())) {
+                    throw new Error('Uma das datas acabou de ser reservada por outra pessoa.');
+                }
+
+                transaction.set(reservationRef, {
+                    ...reservation,
+                    days,
+                    createdAt: serverTimestamp()
+                });
+
+                dayRefs.forEach((dayRef, index) => {
+                    transaction.set(dayRef, {
+                        reservationId: reservationRef.id,
+                        date: days[index]
+                    });
+                });
+            });
+        }
+
+        async function removeReservation(reservation) {
+            const reservationRef = doc(db, 'reservations', reservation.id);
+            const days = reservation.days || getDateRange(reservation.date, reservation.checkout || reservation.date);
+
+            await runTransaction(db, async transaction => {
+                const dayRefs = days.map(day => doc(db, 'reservedDates', day));
+                const daySnapshots = await Promise.all(
+                    dayRefs.map(dayRef => transaction.get(dayRef))
+                );
+
+                daySnapshots.forEach((snapshot, index) => {
+                    if (snapshot.exists() && snapshot.data().reservationId === reservation.id) {
+                        transaction.delete(dayRefs[index]);
+                    }
+                });
+
+                transaction.delete(reservationRef);
+            });
+        }
+
+        function listenForReservations() {
+            return onSnapshot(collection(db, 'reservations'), snapshot => {
+                reservations = snapshot.docs.map(reservationDoc => ({
+                    id: reservationDoc.id,
+                    ...reservationDoc.data()
+                }));
+                renderCalendar();
+                renderReservations();
+            }, error => {
+                console.error(error);
+                alert('Não foi possível acessar as reservas online. Verifique as regras do Firestore.');
+            });
+        }
 
         function formatDate(dateStr) {
             return dateStr ? dateStr.split('-').reverse().join('/') : '';
@@ -396,11 +499,15 @@
             });
         }
 
-        window.deleteReservation = function(index) {
+        window.deleteReservation = async function(index) {
             if (confirm('Tem certeza que deseja cancelar esta reserva?')) {
-                reservations.splice(index, 1);
-                renderCalendar();
-                renderReservations();
+                try {
+                    await removeReservation(reservations[index]);
+                    alert('Reserva cancelada em todos os dispositivos.');
+                } catch (error) {
+                    console.error(error);
+                    alert('Não foi possível cancelar a reserva.');
+                }
             }
         };
 
@@ -418,7 +525,7 @@
             });
 
             // Confirmar Reserva
-            document.getElementById('reserveBtn').addEventListener('click', () => {
+            document.getElementById('reserveBtn').addEventListener('click', async () => {
                 if (!checkin || !checkout) return;
 
                 const clientName = document.getElementById('clientName').value.trim();
@@ -427,15 +534,24 @@
                     return;
                 }
 
-                reservations.push({
-                    date: checkin,
-                    checkout: checkout,
-                    client: clientName,
-                    observation: document.getElementById('observation').value.trim()
-                });
+                const reserveBtn = document.getElementById('reserveBtn');
+                reserveBtn.disabled = true;
+                reserveBtn.textContent = 'Salvando...';
 
-                renderCalendar();
-                renderReservations();
+                try {
+                    await createReservation({
+                        date: checkin,
+                        checkout: checkout,
+                        client: clientName,
+                        observation: document.getElementById('observation').value.trim()
+                    });
+                } catch (error) {
+                    console.error(error);
+                    reserveBtn.disabled = false;
+                    reserveBtn.textContent = '✅ Confirmar Reserva';
+                    alert(error.message || 'Não foi possível salvar a reserva.');
+                    return;
+                }
 
                 // Limpar formulário
                 checkin = null;
@@ -445,9 +561,10 @@
                 document.getElementById('clientName').value = '';
                 document.getElementById('observation').value = '';
                 document.getElementById('availabilityStatus').style.display = 'none';
-                document.getElementById('reserveBtn').disabled = true;
+                reserveBtn.disabled = true;
+                reserveBtn.textContent = '✅ Confirmar Reserva';
 
-                alert('✅ Reserva confirmada!\n\nLembre-se de Exportar as reservas para salvar permanentemente.');
+                alert('✅ Reserva confirmada e compartilhada com todos os dispositivos!');
             });
 
             // Exportar
@@ -472,17 +589,23 @@
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = function(ev) {
+                reader.onload = async function(ev) {
                     try {
                         const imported = JSON.parse(ev.target.result);
                         if (Array.isArray(imported)) {
-                            reservations = [...reservations, ...imported];
-                            renderCalendar();
-                            renderReservations();
+                            for (const reservation of imported) {
+                                await createReservation({
+                                    date: reservation.date,
+                                    checkout: reservation.checkout || reservation.date,
+                                    client: reservation.client || 'Não informado',
+                                    observation: reservation.observation || ''
+                                });
+                            }
                             alert('✅ Reservas importadas com sucesso!');
                         }
                     } catch (err) {
-                        alert('Erro ao importar o arquivo.');
+                        console.error(err);
+                        alert(err.message || 'Erro ao importar o arquivo.');
                     }
                 };
                 reader.readAsText(file);
@@ -494,6 +617,7 @@
             renderCalendar();
             renderReservations();
             addEventListeners();   // ← Adicionado aqui, depois que todos os elementos existem
+            listenForReservations();
         }
 
         // Executa quando a página carrega

@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /reservations/{reservationId} {
+      allow read: if true;
+
+      allow create: if
+        request.resource.data.date is string &&
+        request.resource.data.checkout is string &&
+        request.resource.data.client is string &&
+        request.resource.data.client.size() > 0 &&
+        request.resource.data.client.size() <= 100 &&
+        request.resource.data.observation is string &&
+        request.resource.data.observation.size() <= 500 &&
+        request.resource.data.days is list &&
+        request.resource.data.days.size() > 0 &&
+        request.resource.data.days.size() <= 90;
+
+      allow delete: if true;
+      allow update: if false;
+    }
+
+    match /reservedDates/{date} {
+      allow read: if true;
+
+      allow create: if
+        request.resource.data.reservationId is string &&
+        request.resource.data.date == date;
+
+      allow delete: if true;
+      allow update: if false;
+    }
+  }
+}
