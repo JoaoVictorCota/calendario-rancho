@@ -6,6 +6,9 @@ service cloud.firestore {
       allow read: if true;
 
       allow create: if
+        request.auth != null &&
+        request.auth.token.phone_number is string &&
+        request.resource.data.ownerId == request.auth.uid &&
         request.resource.data.date is string &&
         request.resource.data.checkout is string &&
         request.resource.data.client is string &&
@@ -17,7 +20,10 @@ service cloud.firestore {
         request.resource.data.days.size() > 0 &&
         request.resource.data.days.size() <= 90;
 
-      allow delete: if true;
+      allow delete: if
+        request.auth != null &&
+        request.auth.token.phone_number is string &&
+        resource.data.ownerId == request.auth.uid;
       allow update: if false;
     }
 
@@ -25,10 +31,16 @@ service cloud.firestore {
       allow read: if true;
 
       allow create: if
+        request.auth != null &&
+        request.auth.token.phone_number is string &&
+        request.resource.data.ownerId == request.auth.uid &&
         request.resource.data.reservationId is string &&
         request.resource.data.date == date;
 
-      allow delete: if true;
+      allow delete: if
+        request.auth != null &&
+        request.auth.token.phone_number is string &&
+        resource.data.ownerId == request.auth.uid;
       allow update: if false;
     }
   }
