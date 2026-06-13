@@ -229,7 +229,7 @@
         } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 
         const firebaseConfig = {
-            apiKey: 'AIzaSyB_dRYVqBCrYkBNsnxAkmo68BDOAn7PWFo',
+            apiKey: 'AIzaSyB_dRYVqBcrYkBNsnxAkmo68BDOAn7PWFo',
             authDomain: 'calendario-rancho.firebaseapp.com',
             projectId: 'calendario-rancho',
             storageBucket: 'calendario-rancho.firebasestorage.app',
@@ -565,10 +565,17 @@
             onAuthStateChanged(auth, user => {
                 currentUser = user;
                 renderReservations();
+                if (checkin && checkout) {
+                    document.getElementById('reserveBtn').disabled = !user;
+                }
             });
 
             try {
-                await signInAnonymously(auth);
+                const credential = await signInAnonymously(auth);
+                currentUser = credential.user;
+                if (checkin && checkout) {
+                    document.getElementById('reserveBtn').disabled = false;
+                }
             } catch (error) {
                 console.error(error);
                 alert('Não foi possível identificar este dispositivo. Ative o login anônimo no Firebase.');
