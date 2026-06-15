@@ -286,10 +286,33 @@
             return dates;
         }
 
-        async function createReservation(reservation) {
-            if (!currentUser) {
-                throw new Error('O dispositivo ainda não foi identificado. Tente novamente.');
+        async function ensureCurrentUser() {
+            if (auth.currentUser) {
+                currentUser = auth.currentUser;
+                return currentUser;
             }
+
+            const credential = await signInAnonymously(auth);
+            currentUser = credential.user;
+            renderReservations();
+            return currentUser;
+        }
+
+        function getConnectionErrorMessage(error) {
+            if (error?.code === 'auth/network-request-failed') {
+                return 'A rede deste dispositivo bloqueou a conexão necessária. Tente trocar entre Wi-Fi e dados móveis e confirme novamente.';
+            }
+            if (error?.code === 'auth/operation-not-allowed') {
+                return 'A identificação de dispositivos está temporariamente indisponível.';
+            }
+            if (error?.code?.startsWith('auth/')) {
+                return 'Não foi possível identificar este dispositivo. Verifique a internet e tente novamente.';
+            }
+            return error?.message || 'Não foi possível salvar a reserva.';
+        }
+
+        async function createReservation(reservation) {
+            await ensureCurrentUser();
 
             const days = getDateRange(reservation.date, reservation.checkout);
             if (days.length > 90) {
@@ -474,7 +497,7 @@
                 if (isAvailable) {
                     statusEl.textContent = '✅ Período disponível!';
                     statusEl.className = 'status available';
-                    reserveBtn.disabled = !currentUser;
+                    reserveBtn.disabled = false;
                 } else {
                     statusEl.textContent = '❌ Conflito no período selecionado';
                     statusEl.className = 'status unavailable';
@@ -565,7 +588,7 @@
                     console.error(error);
                     reserveBtn.disabled = false;
                     reserveBtn.textContent = '✅ Confirmar Reserva';
-                    alert(error.message || 'Não foi possível salvar a reserva.');
+                    alert(getConnectionErrorMessage(error));
                     return;
                 }
 
@@ -595,20 +618,12 @@
             onAuthStateChanged(auth, user => {
                 currentUser = user;
                 renderReservations();
-                if (checkin && checkout) {
-                    document.getElementById('reserveBtn').disabled = !user;
-                }
             });
 
             try {
-                const credential = await signInAnonymously(auth);
-                currentUser = credential.user;
-                if (checkin && checkout) {
-                    document.getElementById('reserveBtn').disabled = false;
-                }
+                await ensureCurrentUser();
             } catch (error) {
-                console.error(error);
-                alert('Não foi possível identificar este dispositivo. Ative o login anônimo no Firebase.');
+                console.warn('Identificação inicial adiada até a confirmação da reserva.', error);
             }
         }
 
